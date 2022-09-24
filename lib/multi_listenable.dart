@@ -4,8 +4,26 @@ import 'package:flutter/widgets.dart';
 
 typedef WidgetBuilder = Widget Function(BuildContext context);
 
-class ListenableBuilder extends StatefulWidget {
-  const ListenableBuilder({
+/// A widget whose content stays synced with a list of Listenable.
+///
+/// ```
+/// MultiListenableBuilder(
+/// 	listenable: [ /* your listables to listen */],
+/// 	builder : (context) => Container(),
+/// )
+/// ```
+
+/// ## Parameters
+
+/// # required Iterable<[Listenable]> listenable
+/// An iterable of [Listenable] to listen. When one (or more) of the listenable notify,
+/// the builder function is called.
+
+/// # required [WidgetBuilder] builder
+/// A function to call every time a [Listener] passed in [listenable] notify.
+
+class MultiListenableBuilder extends StatefulWidget {
+  const MultiListenableBuilder({
     super.key,
     required this.listenables,
     required this.builder,
@@ -16,40 +34,36 @@ class ListenableBuilder extends StatefulWidget {
   final WidgetBuilder builder;
 
   @override
-  State<StatefulWidget> createState() => _ListenableBuilderState();
+  State<StatefulWidget> createState() => _MultiListenableBuilderState();
 }
 
-class _ListenableBuilderState<T> extends State<ListenableBuilder> {
+class _MultiListenableBuilderState<T> extends State<MultiListenableBuilder> {
   Iterable<Listenable> get listenables => widget.listenables;
 
   @override
   void initState() {
     super.initState();
-    for (final l in listenables) {
-      l.addListener(_notified);
-    }
+    _relink(newList: listenables);
   }
 
   @override
-  void didUpdateWidget(ListenableBuilder oldWidget) {
+  Widget build(BuildContext context) => widget.builder(context);
+
+  @override
+  void didUpdateWidget(MultiListenableBuilder oldWidget) {
     super.didUpdateWidget(oldWidget);
     final oldList = oldWidget.listenables.toSet();
     final newList = listenables.toSet();
-    if (newList.length == oldList.length &&
-        !oldList.any((e) => !newList.contains(e))) return;
-    for (final l in oldList) {
-      l.removeListener(_notified);
-    }
-    for (final l in newList) {
-      l.addListener(_notified);
+    if (newList.length != oldList.length) {
+      _relink(oldList: oldList, newList: newList);
+    } else if (oldList.any((e) => !newList.contains(e))) {
+      _relink(oldList: oldList, newList: newList);
     }
   }
 
   @override
   void dispose() {
-    for (final l in listenables) {
-      l.removeListener(_notified);
-    }
+    _relink(oldList: listenables);
     super.dispose();
   }
 
@@ -57,6 +71,19 @@ class _ListenableBuilderState<T> extends State<ListenableBuilder> {
     setState(() {});
   }
 
-  @override
-  Widget build(BuildContext context) => widget.builder(context);
+  void _relink({
+    Iterable<Listenable>? oldList,
+    Iterable<Listenable>? newList,
+  }) {
+    if (oldList != null) {
+      for (final l in oldList) {
+        l.removeListener(_notified);
+      }
+    }
+    if (newList != null) {
+      for (final l in newList) {
+        l.addListener(_notified);
+      }
+    }
+  }
 }
